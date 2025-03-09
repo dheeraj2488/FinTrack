@@ -26,6 +26,31 @@ const getAllTransactions = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+const editTransaction = async (req, res) => {
+  try {
+    const { transactionId, ...updateFields } = req.body;
+    await transactionModel.findOneAndUpdate({_id:transactionId},{$set:updateFields});
+    res.status(200).json({success: true, message: "Transaction updated successfully" });
+
+  }catch(error){
+    console.log(error);
+    res.status(500).json({success: false, message: "Internal server error" });
+  }
+
+};
+
+const deleteTransaction = async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+      await transactionModel.findOneAndDelete({_id:transactionId});
+      res.status(200).json({success: true, message: "Transaction deleted successfully" });
+    }catch(error){
+      console.log(error);
+      res.status(500).json({success: false, message: "Internal server error" });
+    }
+  };
+
+
 
 const addTransaction = async (req, res) => {
   try {
@@ -40,4 +65,4 @@ const addTransaction = async (req, res) => {
   }
 };
 
-module.exports = { getAllTransactions, addTransaction };
+module.exports = { getAllTransactions, addTransaction ,editTransaction , deleteTransaction };

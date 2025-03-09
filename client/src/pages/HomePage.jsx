@@ -6,7 +6,7 @@ import Spinner from "../components/Spinner";
 import axios from "axios";
 import { toast } from "react-toastify";
 import moment from "moment";
-import { UnorderedListOutlined, AreaChartOutlined } from "@ant-design/icons";
+import { UnorderedListOutlined, AreaChartOutlined ,EditOutlined , DeleteOutlined } from "@ant-design/icons";
 import Analytics from "../components/Analytics";
 const { RangePicker } = DatePicker;
 
@@ -24,31 +24,53 @@ const HomePage = () => {
   const [selectDate, setSelectDate] = useState([]);
   const [viewData, setViewData] = useState("table");
   const [mode, setMode] = useState("all");
+  const [editable , setEditable] = useState(null)
 
   const { loading, user } = useAuth();
+  // console.log(editable)
+  const getTransactions = async (userid, frequency, selectDate, mode) => {
+    try {
+      const response = await axios.post(
+        "http://localhost:8080/api/transactions/get-transactions",
+        { userid, frequency, selectDate, mode }
+      );
+      if (response.data) {
+        // console.log(response.data);
+        setTransactions(response.data);
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.response.data.message || "Failed.", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+    }
+  };
 
   useEffect(() => {
-    const getTransactions = async (userid, frequency, selectDate, Type) => {
-      try {
-        const response = await axios.post(
-          "http://localhost:8080/api/transactions/get-transactions",
-          { userid, frequency, selectDate, mode }
-        );
-        if (response.data) {
-          console.log(response.data);
-          setTransactions(response.data);
-        }
-      } catch (error) {
-        console.log(error);
-        toast.error(error.response.data.message || "Failed.", {
-          position: "top-center",
-          autoClose: 2000,
-        });
-      }
-    };
-    getTransactions(user._id, frequency, selectDate, mode);
-  }, [frequency, selectDate, mode , showModal]);
-
+    if (editable) {
+      setAmount(editable.amount);
+      setType(editable.type);
+      setCategory(editable.category);
+      setReference(editable.reference);
+      setDescription(editable.description);
+      setDate(moment(editable.date).format("YYYY-MM-DD"));
+    } else {
+      setAmount("");
+      setType("");
+      setCategory("");
+      setReference("");
+      setDescription("");
+      setDate("");
+    }  
+    
+    
+    if (user) {
+      getTransactions(user._id, frequency, selectDate, mode);
+    }
+  }, [frequency, selectDate, mode, user  , editable ]);
+  
+ 
   const columns = [
     {
       title: "Date",
@@ -78,31 +100,87 @@ const HomePage = () => {
     },
     {
       title: "Action",
+      render :(text , record)=>(
+      
+        <div>
+          
+          <EditOutlined className="cursor-pointer mx-2 text-blue-500" onClick={()=>{
+            setEditable(record)
+            setShowModal(true)
+          }}/>
+          <DeleteOutlined className="cursor-pointer mx-2 text-blue-500" onClick={()=>{handelDelete(record)}}/>
+        </div>
+      ),
     },
   ];
 
-  const handelSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await axios.post(
-        "http://localhost:8080/api/transactions/add-transaction",
-        {
-          userid: user._id,
-          amount,
-          type,
-          category,
-          reference,
-          description,
-          date,
-        }
-      );
-      if (response.data.success) {
-        toast.success("Transaction added successfully!", {
+  const handelDelete = async(record)=>{
+    try{
+      
+      const response = await axios.post("http://localhost:8080/api/transactions/delete-transaction",{
+        transactionId:record._id
+      });
+      if(response.data.success){
+        toast.success("Transaction deleted successfully!", {
           position: "top-right",
           autoClose: 3000,
         });
+        getTransactions(user._id, frequency, selectDate, mode);
+      }
+      
+    }catch(error){
+      toast.error(error.response.data.message || "Failed.", {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
+  };
+  const handelSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if(editable){
+        const response = await axios.post(
+          "http://localhost:8080/api/transactions/edit-transaction",
+          {
+            transactionId:editable._id
+           ,userid:user._id,
+           amount,type,category , reference ,description , date,
+          }
+        );
+        if (response.data.success) {
+          toast.success("Transaction updated successfully!", {
+            position: "top-right",
+            autoClose: 3000,
+          });
+        }
+        setEditable(null);
+
+      }else{
+         
+        const response = await axios.post(
+          "http://localhost:8080/api/transactions/add-transaction",
+          {
+            userid: user._id,
+            amount,
+            type,
+            category,
+            reference,
+            description,
+            date,
+          }
+        );
+        if (response.data.success) {
+          toast.success("Transaction added successfully!", {
+            position: "top-right",
+            autoClose: 3000,
+          });
+        }
+
+
       }
       setShowModal(false);
+      getTransactions(user._id, frequency, selectDate, mode);
+      
     } catch (error) {
       toast.error(error.response.data.message || "Failed.", {
         position: "top-right",
@@ -118,8 +196,8 @@ const HomePage = () => {
 
   return (
     <Layout>
-      <div className="my-2 px-4 py-3 mx-auto shadow-lg">
-        <div className="container flex justify-between my-2 px-4 py-3 mx-auto shadow-lg">
+      <div className="h-full my-2 px-4 py-3 mx-auto shadow-lg ">
+        <div className="container flex justify-between my-3 px-4 py-3 mx-auto shadow-lg">
           <h1 className="">Range Filters</h1>
           <div>
             <Button
@@ -183,12 +261,16 @@ const HomePage = () => {
       </div>
 
       <Modal
-        title="Enter New Transaction"
+        title={editable ? 'Edit Transaction': 'Add Transaction'}
         open={showModal}
-        onCancel={() => setShowModal(false)}
+        onCancel={() => {
+          setEditable(null)
+          setShowModal(false)
+        }
+         }
         footer={false}
       >
-        <form className="space-y-6" onSubmit={handelSubmit}>
+        <form className="space-y-6" onSubmit={handelSubmit} initialvalues={editable}>
           <div>
             <label htmlFor="amount">Amount: </label>
             <input
